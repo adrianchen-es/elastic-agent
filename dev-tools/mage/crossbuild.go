@@ -53,36 +53,10 @@ func WithTarget(target string) func(params *crossBuildParams) {
 	}
 }
 
-// InDir specifies the base directory to use when cross-building.
-func InDir(path ...string) func(params *crossBuildParams) {
-	return func(params *crossBuildParams) {
-		params.InDir = filepath.Join(path...)
-	}
-}
-
-// Serially causes each cross-build target to be executed serially instead of
-// in parallel.
-func Serially() func(params *crossBuildParams) {
-	return func(params *crossBuildParams) {
-		params.Serial = true
-	}
-}
-
 // ImageSelector returns the name of the selected builder image.
 func ImageSelector(f ImageSelectorFunc) func(params *crossBuildParams) {
 	return func(params *crossBuildParams) {
 		params.ImageSelector = f
-	}
-}
-
-// AddPlatforms sets dependencies on others platforms.
-func AddPlatforms(expressions ...string) func(params *crossBuildParams) {
-	return func(params *crossBuildParams) {
-		var list BuildPlatformList
-		for _, expr := range expressions {
-			list = NewPlatformList(expr)
-			params.Platforms = params.Platforms.Merge(list)
-		}
 	}
 }
 
@@ -166,15 +140,6 @@ func CrossBuild(ctx context.Context, cfg *Settings, options ...CrossBuildOption)
 	Parallel(deps...)
 
 	return nil
-}
-
-// CrossBuildXPack executes the 'golangCrossBuild' target in the Beat's
-// associated x-pack directory to produce a version of the Beat that contains
-// Elastic licensed content.
-func CrossBuildXPack(ctx context.Context, cfg *Settings, options ...CrossBuildOption) error {
-	o := []CrossBuildOption{InDir("x-pack", cfg.Beat.Name)}
-	o = append(o, options...)
-	return CrossBuild(ctx, cfg, o...)
 }
 
 // buildMage pre-compiles the magefile to a binary using the GOARCH parameter.
