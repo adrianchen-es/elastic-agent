@@ -180,7 +180,7 @@ COPY --chown={{ .user }}:{{ .user }} --from=home {{ $beatHome }} {{ $beatHome }}
 # create fleet.yml when running as non-root.
 RUN chmod 0777 {{ $beatHome }} && \
     usermod -d {{ $beatHome}} {{ .user }} && \
-    find {{ $beatHome }}/data/elastic-agent-{{ commit_short }}/components -name "*.yml*" -type f -exec chown {{ .user }}:{{ .user }} {} \; && \
+    find {{ $beatHome }}/data/elastic-agent-{{ commit_short }}/components -name "*.yml*" -type f -exec chown root:root {} \; && \
     true
 
 RUN mkdir /licenses
