@@ -11,7 +11,7 @@ set -eo pipefail
 # If the current UID has no passwd entry, add one.
 if ! whoami &>/dev/null; then
   if [ -w /etc/passwd ]; then
-    echo "elastic-agent:x:$(id -u):$(id -g):elastic-agent:{{ $beatHome }}:/bin/bash" >> /etc/passwd
+    echo "elastic-agent:x:$(id -u):$(id -g):elastic-agent:{{ $beatHome }}:/bin/bash" >> /etc/passwd || true
   fi
 fi
 
@@ -22,7 +22,7 @@ CA_DIR="{{ $beatHome }}/certs/ca"
 CA_BUNDLE="${CA_DIR}/ca-bundle.crt"
 # Remove any stale bundle before scanning for mounted .crt files
 rm -f "$CA_BUNDLE"
-if [ -d "$CA_DIR" ] && compgen -G "$CA_DIR"/*.crt >/dev/null 2>&1; then
+if [ -d "$CA_DIR" ] && compgen -G "${CA_DIR}"/*.crt >/dev/null 2>&1; then
   # Concatenate all mounted .crt files into a single bundle for NODE_EXTRA_CA_CERTS
   cat "$CA_DIR"/*.crt > "$CA_BUNDLE" 2>/dev/null || true
 
@@ -50,12 +50,17 @@ if [ -d "$CA_DIR" ] && compgen -G "$CA_DIR"/*.crt >/dev/null 2>&1; then
     certutil -d sql:"$NSSDB" -N --empty-password 2>/dev/null || true
     for crt in "$CA_DIR"/*.crt; do
       [ -f "$crt" ] || continue
+      [ "$crt" = "$CA_BUNDLE" ] && continue
       cert_name="$(basename "$crt" .crt)"
       # CT,, = trusted CA for TLS server auth; no email or object-signing trust
       certutil -d sql:"$NSSDB" -A -t "CT,," -n "$cert_name" -i "$crt" 2>/dev/null || true
     done
   fi
 
+else
+  # No custom CAs mounted — unset NODE_EXTRA_CA_CERTS to avoid Node.js
+  # warnings about a missing certificate file on every invocation.
+  unset NODE_EXTRA_CA_CERTS
 fi
 
 # For information on the possible environment variables that can be passed into the container. Run the following
