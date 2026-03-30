@@ -211,7 +211,13 @@ RUN echo \
     {{ $beatHome }}/.synthetics \
     {{ $beatHome }}/.npm \
     {{ $beatHome }}/.cache \
-    | xargs -IDIR sh -c 'mkdir -p DIR && chmod 0775 DIR'
+    {{ $beatHome }}/certs/ca \
+    | xargs -IDIR sh -c 'mkdir -p DIR && chmod 0775 DIR && chown root:root DIR'
+
+# Support arbitrary user ids for OpenShift
+# Ensure /etc/passwd is group-writable so the entrypoint can add a passwd entry for arbitrary UIDs
+# REF: https://docs.okd.io/latest/openshift_images/create-images.html
+RUN chmod g+w /etc/passwd
 
 # Setup synthetics env vars
 ENV ELASTIC_SYNTHETICS_CAPABLE=true
@@ -219,6 +225,8 @@ ENV ELASTIC_AGENT_COMPLETE=true
 ENV TZ=UTC
 ENV NODE_VERSION=22.22.0
 ENV PATH="$NODE_PATH/node/bin:$PATH"
+# Allow mounting custom CA certificates for internal/private CAs
+ENV NODE_EXTRA_CA_CERTS={{ $beatHome }}/certs/ca/ca-bundle.crt
 # Install the latest version of @elastic/synthetics forcefully ignoring the previously
 # cached node_modules, heartbeat then calls the global executable to run test suites
 # Setup node
@@ -243,7 +251,7 @@ RUN cd {{$beatHome}}/.node \
   && chmod ugo+rwX -R $NODE_PATH \
 # Install synthetics as a regular user, installing npm deps as root odesn't work
    # fix .node .npm and .synthetics
-   && chown -R {{ .user }}:{{ .user }} $NODE_PATH
+   && chown -R {{ .user }}:root $NODE_PATH
 USER {{ .user }}
 # If this fails dump the NPM logs
 RUN (npm i -g --loglevel verbose --production --engine-strict @elastic/synthetics@stack_release || sh -c 'tail -n +1 /root/.npm/_logs/* && exit 1') && \
@@ -273,6 +281,10 @@ RUN for iter in {1..10}; do \
         exit_code=0 && break || exit_code=$? && echo "microdnf error: retry $iter in 10s" && sleep 10; \
     done; \
     (exit $exit_code)
+
+# Support arbitrary user ids for OpenShift
+# Ensure group permissions match user permissions so GID-0 members can operate
+RUN chmod -R g=u {{ $beatHome }}/.node {{ $beatHome }}/.config {{ $beatHome }}/.synthetics {{ $beatHome }}/.npm {{ $beatHome }}/.cache {{ $beatHome }}/certs
 {{- end }}
 
 {{- if (and (eq .Variant "complete-wolfi") (contains .from "wolfi"))  }}
@@ -287,11 +299,18 @@ RUN for iter in {1..10}; do \
     done; \
     (exit $exit_code)
 
+# Support arbitrary user ids for OpenShift
+# Ensure /etc/passwd is group-writable so the entrypoint can add a passwd entry for arbitrary UIDs
+# REF: https://docs.okd.io/latest/openshift_images/create-images.html
+RUN chmod g+w /etc/passwd
+
 # Setup synthetics env vars
 ENV ELASTIC_SYNTHETICS_CAPABLE=true
 ENV TZ=UTC
 ENV NPM_CONFIG_PREFIX={{ $beatHome }}/.npm
 ENV PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+# Allow mounting custom CA certificates for internal/private CAs
+ENV NODE_EXTRA_CA_CERTS={{ $beatHome }}/certs/ca/ca-bundle.crt
 
 RUN echo \
     $NPM_CONFIG_PREFIX \
@@ -299,11 +318,17 @@ RUN echo \
     {{ $beatHome }}/.synthetics \
     {{ $beatHome }}/.npm \
     {{ $beatHome }}/.cache \
-    | xargs -IDIR sh -c 'mkdir -m 0770 -p DIR && chown -R {{ .user }} DIR'
+    {{ $beatHome }}/certs/ca \
+    | xargs -IDIR sh -c 'mkdir -m 0775 -p DIR && chown root:root DIR'
 
 USER {{ .user }}
 
 RUN (npm i -g --loglevel verbose --production --engine-strict  @elastic/synthetics@stack_release || sh -c 'tail -n +1 ${NPM_CONFIG_PREFIX}/_logs/* && exit 1')
+
+USER root
+# Support arbitrary user ids for OpenShift
+# Ensure group permissions match user permissions so GID-0 members can operate
+RUN chmod -R g=u $NPM_CONFIG_PREFIX {{ $beatHome }}/.config {{ $beatHome }}/.synthetics {{ $beatHome }}/.cache {{ $beatHome }}/certs
 {{- end }}
 
 USER {{ .user }}
