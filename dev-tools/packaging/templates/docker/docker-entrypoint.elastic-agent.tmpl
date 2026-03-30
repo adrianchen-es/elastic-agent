@@ -36,6 +36,26 @@ if [ -d "$CA_DIR" ] && compgen -G "$CA_DIR"/*.crt >/dev/null 2>&1; then
       update-ca-certificates || true
     fi
   fi
+
+  # Populate the per-user NSS database for headless Chromium (used by Playwright synthetics).
+  # The Chromium browser process does not read NODE_EXTRA_CA_CERTS or system PEM bundles
+  # directly — it reads from ~/.pki/nssdb via libnss. On Wolfi, update-ca-certificates
+  # does not feed NSS at all; on UBI, update-ca-trust feeds /etc/pki/nssdb but Chromium
+  # in containers reads the per-user DB. This block covers both variants and OpenShift
+  # non-root runs where the system NSS database is not writable.
+  if command -v certutil &>/dev/null; then
+    NSSDB="${HOME:-{{ $beatHome }}}/.pki/nssdb"
+    mkdir -p "$NSSDB"
+    # Initialise an empty NSS DB if one does not already exist
+    certutil -d sql:"$NSSDB" -N --empty-password 2>/dev/null || true
+    for crt in "$CA_DIR"/*.crt; do
+      [ -f "$crt" ] || continue
+      cert_name="$(basename "$crt" .crt)"
+      # CT,, = trusted CA for TLS server auth; no email or object-signing trust
+      certutil -d sql:"$NSSDB" -A -t "CT,," -n "$cert_name" -i "$crt" 2>/dev/null || true
+    done
+  fi
+
 fi
 
 # For information on the possible environment variables that can be passed into the container. Run the following
