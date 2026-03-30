@@ -45,7 +45,7 @@ if [ -d "$CA_DIR" ] && compgen -G "$CA_DIR"/*.crt >/dev/null 2>&1; then
   # non-root runs where the system NSS database is not writable.
   if command -v certutil &>/dev/null; then
     NSSDB="${HOME:-{{ $beatHome }}}/.pki/nssdb"
-    mkdir -p "$NSSDB"
+    mkdir -p "$NSSDB" || true
     # Initialise an empty NSS DB if one does not already exist
     certutil -d sql:"$NSSDB" -N --empty-password 2>/dev/null || true
     for crt in "$CA_DIR"/*.crt; do
