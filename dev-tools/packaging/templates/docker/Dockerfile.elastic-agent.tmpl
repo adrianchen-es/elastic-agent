@@ -320,7 +320,6 @@ RUN echo \
     {{ $beatHome }}/.cache \
     {{ $beatHome }}/certs/ca \
     | xargs -IDIR sh -c 'mkdir -m 0775 -p DIR && chown {{ .user }}:root DIR'
-
 USER {{ .user }}
 
 RUN (npm i -g --loglevel verbose --production --engine-strict  @elastic/synthetics@stack_release || sh -c 'tail -n +1 ${NPM_CONFIG_PREFIX}/_logs/* && exit 1')

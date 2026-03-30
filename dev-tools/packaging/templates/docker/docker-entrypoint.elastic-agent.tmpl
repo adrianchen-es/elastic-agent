@@ -1,5 +1,6 @@
 #!/bin/bash
 {{- $beatHome := printf "%s/%s" "/usr/share" .BeatName }}
+{{- $beatHome := printf "%s/%s" "/usr/share" .BeatName }}
 
 # Update umask to retain group write permissions on runtime directories: $root/tmp/default, $root/logs/default and $root/run/default
 umask 0007
