@@ -13,7 +13,7 @@ CA_DIR="{{ $beatHome }}/certs/ca"
 CA_BUNDLE="${CA_DIR}/ca-bundle.crt"
 # Remove any stale bundle before scanning for mounted .crt files
 rm -f "$CA_BUNDLE"
-if [ -d "$CA_DIR" ] && compgen -G "${CA_DIR}"/*.crt >/dev/null 2>&1; then
+if [ -d "$CA_DIR" ] && ls "${CA_DIR}"/*.crt >/dev/null 2>&1; then
   # Concatenate all mounted .crt files into a single bundle for NODE_EXTRA_CA_CERTS
   cat "$CA_DIR"/*.crt > "$CA_BUNDLE" 2>/dev/null || true
 
