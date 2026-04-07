@@ -7,7 +7,7 @@ umask 0007
 set -eo pipefail
 
 # Custom CA certificate handling.
-if [[ "$ELASTIC_AGENT_COMPLETE" == "true" ]] && [[ "$ELASTIC_SYNTHETICS_CAPABLE" == "true" ]]; then
+if [[ "$ELASTIC_SYNTHETICS_CAPABLE" == "true" ]]; then
   # Users can mount .crt files into {{ $beatHome }}/certs/ca/ to trust internal CAs.
   # NODE_EXTRA_CA_CERTS is set in the Dockerfile to point to the bundle path.
   CA_DIR="{{ $beatHome }}/certs/ca"
