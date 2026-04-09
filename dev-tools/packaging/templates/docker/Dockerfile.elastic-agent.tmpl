@@ -180,7 +180,7 @@ COPY --chown={{ .user }}:{{ .user }} --from=home {{ $beatHome }} {{ $beatHome }}
 # create fleet.yml when running as non-root.
 RUN chmod 0777 {{ $beatHome }} && \
     usermod -d {{ $beatHome}} {{ .user }} && \
-    find {{ $beatHome }}/data/elastic-agent-{{ commit_short }}/components -name "*.yml*" -type f -exec chown {{ .user }}:{{ .user }} {} \; && \
+    find {{ $beatHome }}/data/elastic-agent-{{ commit_short }}/components -name "*.yml*" -type f -exec chown root:root {} \; && \
     true
 
 RUN mkdir /licenses
@@ -211,13 +211,13 @@ RUN echo \
     {{ $beatHome }}/.synthetics \
     {{ $beatHome }}/.npm \
     {{ $beatHome }}/.cache \
-    | xargs -IDIR sh -c 'mkdir -p DIR && chmod 0775 DIR'
+    | xargs -IDIR sh -c 'mkdir -p DIR && chmod 0775 DIR && chown root:root DIR'
 
 # Setup synthetics env vars
 ENV ELASTIC_SYNTHETICS_CAPABLE=true
 ENV ELASTIC_AGENT_COMPLETE=true
 ENV TZ=UTC
-ENV NODE_VERSION=22.22.0
+ENV NODE_VERSION=22.22.2
 ENV PATH="$NODE_PATH/node/bin:$PATH"
 # Install the latest version of @elastic/synthetics forcefully ignoring the previously
 # cached node_modules, heartbeat then calls the global executable to run test suites
@@ -243,7 +243,7 @@ RUN cd {{$beatHome}}/.node \
   && chmod ugo+rwX -R $NODE_PATH \
 # Install synthetics as a regular user, installing npm deps as root odesn't work
    # fix .node .npm and .synthetics
-   && chown -R {{ .user }}:{{ .user }} $NODE_PATH
+   && chown -R {{ .user }}:root $NODE_PATH
 USER {{ .user }}
 # If this fails dump the NPM logs
 RUN (npm i -g --loglevel verbose --production --engine-strict @elastic/synthetics@stack_release || sh -c 'tail -n +1 /root/.npm/_logs/* && exit 1') && \
@@ -273,6 +273,10 @@ RUN for iter in {1..10}; do \
         exit_code=0 && break || exit_code=$? && echo "microdnf error: retry $iter in 10s" && sleep 10; \
     done; \
     (exit $exit_code)
+
+# Support arbitrary user ids for OpenShift
+# Ensure group permissions match user permissions so GID-0 members can operate
+RUN chmod -R g=u {{ $beatHome }}/.node {{ $beatHome }}/.config {{ $beatHome }}/.synthetics {{ $beatHome }}/.npm {{ $beatHome }}/.cache
 {{- end }}
 
 {{- if (and (eq .Variant "complete-wolfi") (contains .from "wolfi"))  }}
@@ -280,7 +284,7 @@ USER root
 # Install required dependencies from wolfi repository
 RUN for iter in {1..10}; do \
         apk fix && \
-        apk add --no-interactive --no-progress --no-cache nodejs-22=22.22.0-r0 npm=11.4.2-r1 glib dbus-glib libatk-1.0 \
+        apk add --no-interactive --no-progress --no-cache nodejs-22=22.22.2-r0 npm=11.12.0-r1 glib dbus-glib libatk-1.0 \
         libatk-bridge-2.0 cups-libs libxcomposite libxdamage libxfixes libxrandr libxkbcommon pango alsa-lib \
         font-opensans fontconfig gtk icu-data-full libnss mesa font-noto-cjk font-noto-emoji && \
         exit_code=0 && break || exit_code=$? && echo "apk error: retry $iter in 10s" && sleep 10; \
@@ -299,11 +303,16 @@ RUN echo \
     {{ $beatHome }}/.synthetics \
     {{ $beatHome }}/.npm \
     {{ $beatHome }}/.cache \
-    | xargs -IDIR sh -c 'mkdir -m 0770 -p DIR && chown -R {{ .user }} DIR'
+    | xargs -IDIR sh -c 'mkdir -m 0775 -p DIR && chown {{ .user }}:root DIR'
 
 USER {{ .user }}
 
 RUN (npm i -g --loglevel verbose --production --engine-strict  @elastic/synthetics@stack_release || sh -c 'tail -n +1 ${NPM_CONFIG_PREFIX}/_logs/* && exit 1')
+
+USER root
+# Support arbitrary user ids for OpenShift
+# Ensure group permissions match user permissions so GID-0 members can operate
+RUN chmod -R g=u $NPM_CONFIG_PREFIX {{ $beatHome }}/.config {{ $beatHome }}/.synthetics {{ $beatHome }}/.cache
 {{- end }}
 
 USER {{ .user }}
